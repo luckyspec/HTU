@@ -9,13 +9,18 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f6f9; margin: 0; padding: 20px; }
         .container { max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { color: #333; }
+        h1 { color: #333; font-size: 24px; }
         .queue-box { margin: 20px 0; padding: 20px; background: #e3f2fd; border-radius: 10px; }
-        .current-queue { font-size: 80px; font-weight: bold; color: #2196f3; line-height: 1; }
-        .my-queue { font-size: 24px; color: #e91e63; margin-top: 15px; font-weight: bold; }
-        button { width: 100%; padding: 15px; font-size: 18px; background-color: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; }
-        button:hover { background-color: #45a049; }
+        .current-queue { font-size: 70px; font-weight: bold; color: #2196f3; line-height: 1; }
+        .my-queue { font-size: 22px; color: #e91e63; margin-top: 15px; font-weight: bold; }
+        input[type="text"] { width: 90%; padding: 12px; margin-bottom: 15px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; text-align: center; }
+        button { width: 100%; padding: 15px; font-size: 18px; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; margin-bottom: 10px; }
+        .btn-green { background-color: #4caf50; }
+        .btn-green:hover { background-color: #45a049; }
+        .btn-red { background-color: #f44336; }
+        .btn-red:hover { background-color: #d32f2f; }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #inputSection { margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -25,13 +30,20 @@
             <p style="margin: 0; color: #666;">กำลังเรียกคิวที่</p>
             <div class="current-queue" id="currentQueue">0</div>
         </div>
-        <div id="myQueueDisplay" class="my-queue" style="display: none;">คิวของคุณคือ: <span id="myQueueNumber"></span></div>
-        <br>
-        <button id="getQueueBtn" onclick="joinQueue()">กดรับคิว</button>
+        
+        <div id="myQueueDisplay" class="my-queue" style="display: none;">
+            คิวของคุณคือ: <span id="myQueueNumber" style="font-size: 36px; display: block; margin-top: 10px;"></span>
+            <br>
+            <button class="btn-red" onclick="cancelQueue()">ยกเลิกคิวนี้</button>
+        </div>
+
+        <div id="inputSection">
+            <input type="text" id="userId" placeholder="กรอกรหัสประจำตัว เพื่อจองคิว">
+            <button class="btn-green" id="getQueueBtn" onclick="joinQueue()">กดรับคิว</button>
+        </div>
     </div>
 
     <script>
-        // ใส่ Configuration ของคุณแล้ว
         const firebaseConfig = {
             apiKey: "AIzaSyBquMBhY3tKdqOMCF4HXyYzv8yaALDu83s",
             authDomain: "runq-35e15.firebaseapp.com",
@@ -39,41 +51,61 @@
             projectId: "runq-35e15",
             storageBucket: "runq-35e15.firebasestorage.app",
             messagingSenderId: "715871334704",
-            appId: "1:715871334704:web:5ff4c8594f8a86aa6758f5",
-            measurementId: "G-LGHV08LED9"
+            appId: "1:715871334704:web:5ff4c8594f8a86aa6758f5"
         };
 
-        // Initialize Firebase
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
         const db = firebase.database();
 
         let myQueue = localStorage.getItem('myToiletQueue');
-        if (myQueue) {
-            document.getElementById('myQueueDisplay').style.display = 'block';
-            document.getElementById('myQueueNumber').innerText = myQueue;
-            document.getElementById('getQueueBtn').style.display = 'none';
-        }
+        updateUI();
 
-        // แสดงคิวปัจจุบัน
+        // ตรวจสอบสถานะคิวแบบเรียลไทม์
         db.ref('currentQueue').on('value', (snapshot) => {
             const current = snapshot.val() || 0;
             document.getElementById('currentQueue').innerText = current;
             
-            // แจ้งเตือนเมื่อถึงคิว
-            if (myQueue && parseInt(myQueue) === current) {
-                alert("ถึงคิวของคุณแล้ว! กรุณาไปที่หน้าห้องน้ำ");
+            if (myQueue) {
+                const myQNum = parseInt(myQueue);
+                if (myQNum === current) {
+                    alert("ถึงคิวของคุณแล้ว! กรุณาไปที่หน้าห้องน้ำ");
+                } else if (current > myQNum) {
+                    // ถ้าระบบเรียกเลยคิวของผู้ใช้ไปแล้ว ให้รีเซ็ตเพื่อให้จองใหม่ได้
+                    localStorage.removeItem('myToiletQueue');
+                    myQueue = null;
+                    updateUI();
+                }
             }
         });
 
+        function updateUI() {
+            if (myQueue) {
+                document.getElementById('myQueueDisplay').style.display = 'block';
+                document.getElementById('myQueueNumber').innerText = myQueue;
+                document.getElementById('inputSection').style.display = 'none';
+            } else {
+                document.getElementById('myQueueDisplay').style.display = 'none';
+                document.getElementById('inputSection').style.display = 'block';
+                document.getElementById('userId').value = "";
+                document.getElementById('getQueueBtn').disabled = false;
+                document.getElementById('getQueueBtn').innerText = "กดรับคิว";
+            }
+        }
+
         function joinQueue() {
+            const userId = document.getElementById('userId').value.trim();
+            if(userId === "") {
+                alert("กรุณากรอกรหัสประจำตัวก่อนกดรับคิว");
+                return;
+            }
+
             const btn = document.getElementById('getQueueBtn');
             btn.disabled = true;
             btn.innerText = "กำลังรับคิว...";
 
             const lastQueueRef = db.ref('lastQueue');
-            
             lastQueueRef.transaction((currentValue) => {
                 return (currentValue || 0) + 1;
             }, (error, committed, snapshot) => {
@@ -83,15 +115,27 @@
                     btn.innerText = "กดรับคิว";
                 } else if (committed) {
                     const newQueue = snapshot.val();
+                    
+                    // บันทึกรหัสประจำตัวลงฐานข้อมูล
+                    db.ref('queueData/' + newQueue).set({
+                        id: userId
+                    });
+
                     localStorage.setItem('myToiletQueue', newQueue);
                     myQueue = newQueue;
-                    
-                    document.getElementById('myQueueDisplay').style.display = 'block';
-                    document.getElementById('myQueueNumber').innerText = newQueue;
-                    btn.style.display = 'none';
+                    updateUI();
                 }
             });
+        }
+
+        function cancelQueue() {
+            if(confirm("คุณต้องการยกเลิกคิวนี้ใช่หรือไม่?")) {
+                localStorage.removeItem('myToiletQueue');
+                myQueue = null;
+                updateUI();
+            }
         }
     </script>
 </body>
 </html>
+

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบคิวห้องน้ำ</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f6f9; margin: 0; padding: 20px; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        .queue-box { margin: 20px 0; padding: 20px; background: #e3f2fd; border-radius: 10px; }
+        .current-queue { font-size: 80px; font-weight: bold; color: #2196f3; line-height: 1; }
+        .my-queue { font-size: 24px; color: #e91e63; margin-top: 15px; font-weight: bold; }
+        button { width: 100%; padding: 15px; font-size: 18px; background-color: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>คิวเข้าห้องน้ำ</h1>
+        <div class="queue-box">
+            <p style="margin: 0; color: #666;">กำลังเรียกคิวที่</p>
+            <div class="current-queue" id="currentQueue">0</div>
+        </div>
+        <div id="myQueueDisplay" class="my-queue" style="display: none;">คิวของคุณคือ: <span id="myQueueNumber"></span></div>
+        <br>
+        <button id="getQueueBtn" onclick="joinQueue()">กดรับคิว</button>
+    </div>
+
+    <script>
+        // ใส่ Configuration ของคุณแล้ว
+        const firebaseConfig = {
+            apiKey: "AIzaSyBquMBhY3tKdqOMCF4HXyYzv8yaALDu83s",
+            authDomain: "runq-35e15.firebaseapp.com",
+            databaseURL: "https://runq-35e15-default-rtdb.firebaseio.com",
+            projectId: "runq-35e15",
+            storageBucket: "runq-35e15.firebasestorage.app",
+            messagingSenderId: "715871334704",
+            appId: "1:715871334704:web:5ff4c8594f8a86aa6758f5",
+            measurementId: "G-LGHV08LED9"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        let myQueue = localStorage.getItem('myToiletQueue');
+        if (myQueue) {
+            document.getElementById('myQueueDisplay').style.display = 'block';
+            document.getElementById('myQueueNumber').innerText = myQueue;
+            document.getElementById('getQueueBtn').style.display = 'none';
+        }
+
+        // แสดงคิวปัจจุบัน
+        db.ref('currentQueue').on('value', (snapshot) => {
+            const current = snapshot.val() || 0;
+            document.getElementById('currentQueue').innerText = current;
+            
+            // แจ้งเตือนเมื่อถึงคิว
+            if (myQueue && parseInt(myQueue) === current) {
+                alert("ถึงคิวของคุณแล้ว! กรุณาไปที่หน้าห้องน้ำ");
+            }
+        });
+
+        function joinQueue() {
+            const btn = document.getElementById('getQueueBtn');
+            btn.disabled = true;
+            btn.innerText = "กำลังรับคิว...";
+
+            const lastQueueRef = db.ref('lastQueue');
+            
+            lastQueueRef.transaction((currentValue) => {
+                return (currentValue || 0) + 1;
+            }, (error, committed, snapshot) => {
+                if (error) {
+                    alert("เกิดข้อผิดพลาด กรุณาลองใหม่");
+                    btn.disabled = false;
+                    btn.innerText = "กดรับคิว";
+                } else if (committed) {
+                    const newQueue = snapshot.val();
+                    localStorage.setItem('myToiletQueue', newQueue);
+                    myQueue = newQueue;
+                    
+                    document.getElementById('myQueueDisplay').style.display = 'block';
+                    document.getElementById('myQueueNumber').innerText = newQueue;
+                    btn.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการคิวห้องน้ำ (สำหรับทีมงาน)</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #2c3e50; margin: 0; padding: 20px; color: white; }
+        .container { max-width: 500px; margin: 0 auto; background: #34495e; padding: 30px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .queue-box { margin: 20px 0; display: flex; justify-content: space-between; gap: 20px; }
+        .box { flex: 1; background: #ecf0f1; color: #333; padding: 20px; border-radius: 10px; }
+        .number { font-size: 60px; font-weight: bold; color: #e74c3c; margin-top: 10px; line-height: 1;}
+        button { width: 100%; padding: 20px; font-size: 24px; background-color: #e67e22; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
+        button:hover { background-color: #d35400; }
+        .reset-btn { margin-top: 20px; background-color: #c0392b; padding: 10px; font-size: 16px; width: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ระบบจัดการคิว (Admin)</h1>
+        <div class="queue-box">
+            <div class="box">
+                <div>คิวปัจจุบัน (กำลังเข้า)</div>
+                <div class="number" id="currentQueue">0</div>
+            </div>
+            <div class="box">
+                <div>คิวล่าสุด (จองแล้ว)</div>
+                <div class="number" id="lastQueue">0</div>
+            </div>
+        </div>
+        
+        <button onclick="nextQueue()">เรียกคิวถัดไป ➔</button>
+        <br>
+        <button class="reset-btn" onclick="resetQueue()">รีเซ็ตคิวทั้งหมดเป็น 0 (ใช้เมื่อเริ่มงานใหม่)</button>
+    </div>
+
+    <script>
+        // ใส่ Configuration ของคุณแล้ว
+        const firebaseConfig = {
+            apiKey: "AIzaSyBquMBhY3tKdqOMCF4HXyYzv8yaALDu83s",
+            authDomain: "runq-35e15.firebaseapp.com",
+            databaseURL: "https://runq-35e15-default-rtdb.firebaseio.com",
+            projectId: "runq-35e15",
+            storageBucket: "runq-35e15.firebasestorage.app",
+            messagingSenderId: "715871334704",
+            appId: "1:715871334704:web:5ff4c8594f8a86aa6758f5",
+            measurementId: "G-LGHV08LED9"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        // อ่านค่าแบบ Realtime
+        db.ref('currentQueue').on('value', (snapshot) => {
+            document.getElementById('currentQueue').innerText = snapshot.val() || 0;
+        });
+
+        db.ref('lastQueue').on('value', (snapshot) => {
+            document.getElementById('lastQueue').innerText = snapshot.val() || 0;
+        });
+
+        function nextQueue() {
+            const currentRef = db.ref('currentQueue');
+            const lastRef = db.ref('lastQueue');
+            
+            // ตรวจสอบว่าคิวปัจจุบันถึงคิวล่าสุดหรือยัง
+            lastRef.once('value').then((lastSnap) => {
+                const maxQueue = lastSnap.val() || 0;
+                currentRef.once('value').then((currentSnap) => {
+                    const currentQueue = currentSnap.val() || 0;
+                    if (currentQueue < maxQueue) {
+                        currentRef.set(currentQueue + 1);
+                    } else {
+                        alert("ไม่มีคิวให้เรียกแล้ว (คิวปัจจุบันเท่ากับคิวล่าสุด)");
+                    }
+                });
+            });
+        }
+
+        function resetQueue() {
+            if(confirm("คำเตือน: คุณแน่ใจหรือไม่ว่าต้องการรีเซ็ตคิวทั้งหมดกลับเป็นศูนย์? (ข้อมูลคิวเดิมจะหายไป)")) {
+                db.ref('currentQueue').set(0);
+                db.ref('lastQueue').set(0);
+                alert("รีเซ็ตระบบคิวเรียบร้อยแล้ว");
+            }
+        }
+    </script>
+</body>
+</html>

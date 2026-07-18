@@ -38,7 +38,7 @@
         </div>
 
         <div id="inputSection">
-            <input type="text" id="userId" placeholder="โปรดใส่ชื่อเล่นและรหัสนิสิต 3 ตัวท้าย เพื่อจองคิว">
+            <input type="text" id="userId" placeholder="กรอกรหัสประจำตัว เพื่อจองคิว">
             <button class="btn-green" id="getQueueBtn" onclick="joinQueue()">กดรับคิว</button>
         </div>
     </div>
@@ -69,9 +69,18 @@
             
             if (myQueue) {
                 const myQNum = parseInt(myQueue);
-                if (myQNum === current) {
+                
+                // ตรวจสอบการรีเซ็ตระบบจากแอดมิน
+                if (current === 0) {
+                    alert("ระบบถูกรีเซ็ตโดยทีมงาน กรุณากดรับคิวใหม่อีกครั้งหากยังต้องการใช้งาน");
+                    localStorage.removeItem('myToiletQueue');
+                    myQueue = null;
+                    updateUI();
+                } 
+                else if (myQNum === current) {
                     alert("ถึงคิวของคุณแล้ว! กรุณาไปที่หน้าห้องน้ำ");
-                } else if (current > myQNum) {
+                } 
+                else if (current > myQNum) {
                     // ถ้าระบบเรียกเลยคิวของผู้ใช้ไปแล้ว ให้รีเซ็ตเพื่อให้จองใหม่ได้
                     localStorage.removeItem('myToiletQueue');
                     myQueue = null;
@@ -138,4 +147,3 @@
     </script>
 </body>
 </html>
-

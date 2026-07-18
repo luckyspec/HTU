@@ -14,9 +14,22 @@
         .box { flex: 1; background: #ecf0f1; color: #333; padding: 15px; border-radius: 10px; }
         .number { font-size: 50px; font-weight: bold; color: #e74c3c; margin-top: 5px; line-height: 1;}
         .id-display { font-size: 30px; font-weight: bold; color: #8e44ad; margin-top: 5px; word-break: break-all;}
+        
         button { width: 100%; padding: 20px; font-size: 24px; background-color: #e67e22; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; margin-top: 10px; }
         button:hover { background-color: #d35400; }
+        
+        .history-btn { background-color: #3498db; padding: 15px; font-size: 18px; }
+        .history-btn:hover { background-color: #2980b9; }
         .reset-btn { background-color: #c0392b; padding: 10px; font-size: 16px; width: auto; margin-top: 30px; }
+        
+        /* สไตล์สำหรับกล่องแสดงประวัติคิว */
+        .history-container { margin-top: 20px; background: #fff; border-radius: 10px; padding: 15px; color: #333; display: none; text-align: left; max-height: 350px; overflow-y: auto; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+        .history-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; font-size: 16px;}
+        .history-item:last-child { border-bottom: none; }
+        .status-done { color: #95a5a6; }
+        .status-now { color: #e74c3c; font-weight: bold; font-size: 18px; }
+        .status-wait { color: #2ecc71; font-weight: bold; }
+        .status-cancel { color: #bdc3c7; text-decoration: line-through; }
     </style>
 </head>
 <body>
@@ -42,6 +55,15 @@
         </div>
         
         <button onclick="nextQueue()">เรียกคิวถัดไป ➔</button>
+        
+        <!-- ปุ่มเปิด/ปิด รายการคิวทั้งหมด -->
+        <button class="history-btn" onclick="toggleHistory()">📋 ดูข้อมูลคิวทั้งหมด</button>
+        
+        <div class="history-container" id="historyContainer">
+            <h3 style="margin-top:0; text-align:center; border-bottom: 2px solid #3498db; padding-bottom: 10px;">รายชื่อคิวทั้งหมด</h3>
+            <div id="historyList">กำลังโหลดข้อมูล...</div>
+        </div>
+
         <button class="reset-btn" onclick="resetQueue()">รีเซ็ตคิวทั้งหมดเป็น 0 (ใช้เมื่อเริ่มงานใหม่)</button>
     </div>
 
@@ -60,53 +82,127 @@
             firebase.initializeApp(firebaseConfig);
         }
         const db = firebase.database();
+        
+        let currentQueueVal = 0;
+        let lastQueueVal = 0;
+        let queueDataList = {};
 
         // อ่านค่าคิวแบบ Realtime
         db.ref('currentQueue').on('value', (snapshot) => {
-            const current = snapshot.val() || 0;
-            document.getElementById('currentQueue').innerText = current;
+            currentQueueVal = snapshot.val() || 0;
+            document.getElementById('currentQueue').innerText = currentQueueVal;
             
-            // ดึงรหัสประจำตัวของคิวปัจจุบันมาแสดง
-            if (current > 0) {
-                db.ref('queueData/' + current).once('value').then((userSnap) => {
+            if (currentQueueVal > 0) {
+                db.ref('queueData/' + currentQueueVal).once('value').then((userSnap) => {
                     if (userSnap.exists() && userSnap.val().id) {
                         document.getElementById('currentUserId').innerText = userSnap.val().id;
                     } else {
-                        document.getElementById('currentUserId').innerText = "(ไม่มีข้อมูล / กดยกเลิกไปแล้ว)";
+                        document.getElementById('currentUserId').innerText = "(ว่าง / ยกเลิก)";
                     }
                 });
             } else {
                 document.getElementById('currentUserId').innerText = "-";
             }
+            
+            // อัปเดตรายการหากเปิดดูอยู่
+            if (document.getElementById('historyContainer').style.display === 'block') {
+                renderHistory();
+            }
         });
 
         db.ref('lastQueue').on('value', (snapshot) => {
-            document.getElementById('lastQueue').innerText = snapshot.val() || 0;
+            lastQueueVal = snapshot.val() || 0;
+            document.getElementById('lastQueue').innerText = lastQueueVal;
+            
+            if (document.getElementById('historyContainer').style.display === 'block') {
+                renderHistory();
+            }
+        });
+        
+        // โหลดข้อมูลรหัสทั้งหมดแบบ Realtime
+        db.ref('queueData').on('value', (snapshot) => {
+            queueDataList = snapshot.val() || {};
+            if (document.getElementById('historyContainer').style.display === 'block') {
+                renderHistory();
+            }
         });
 
         function nextQueue() {
-            const currentRef = db.ref('currentQueue');
-            const lastRef = db.ref('lastQueue');
+            if (currentQueueVal < lastQueueVal) {
+                db.ref('currentQueue').set(currentQueueVal + 1);
+            } else {
+                alert("ไม่มีคิวให้เรียกแล้ว (คิวปัจจุบันเท่ากับคิวล่าสุด)");
+            }
+        }
+
+        // ฟังก์ชันเปิด/ปิด ดูข้อมูลคิวทั้งหมด
+        function toggleHistory() {
+            const container = document.getElementById('historyContainer');
+            if (container.style.display === 'none' || container.style.display === '') {
+                container.style.display = 'block';
+                renderHistory();
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        // ฟังก์ชันวาดรายการคิว
+        function renderHistory() {
+            const listDiv = document.getElementById('historyList');
+            listDiv.innerHTML = '';
             
-            lastRef.once('value').then((lastSnap) => {
-                const maxQueue = lastSnap.val() || 0;
-                currentRef.once('value').then((currentSnap) => {
-                    const currentQueue = currentSnap.val() || 0;
-                    if (currentQueue < maxQueue) {
-                        currentRef.set(currentQueue + 1);
+            if (lastQueueVal === 0) {
+                listDiv.innerHTML = '<div style="text-align:center; padding:10px;">ยังไม่มีการจองคิว</div>';
+                return;
+            }
+
+            for (let i = 1; i <= lastQueueVal; i++) {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'history-item';
+                
+                let idText = "(ว่าง)";
+                let statusClass = "status-cancel";
+                let statusText = "ยกเลิก";
+
+                if (queueDataList[i] && queueDataList[i].id) {
+                    idText = queueDataList[i].id;
+                    
+                    if (i < currentQueueVal) {
+                        statusClass = "status-done";
+                        statusText = "เสร็จสิ้น";
+                    } else if (i === currentQueueVal) {
+                        statusClass = "status-now";
+                        statusText = "กำลังเข้า ⬅";
                     } else {
-                        alert("ไม่มีคิวให้เรียกแล้ว (คิวปัจจุบันเท่ากับคิวล่าสุด)");
+                        statusClass = "status-wait";
+                        statusText = "รอคิว";
                     }
-                });
-            });
+                }
+
+                itemDiv.innerHTML = `
+                    <div><strong>คิวที่ ${i}</strong> <br> <span style="font-size: 14px; color: #666;">รหัส: ${idText}</span></div>
+                    <div class="${statusClass}">${statusText}</div>
+                `;
+                
+                listDiv.appendChild(itemDiv);
+            }
+            
+            // เลื่อนลงไปหาคิวปัจจุบันอัตโนมัติ
+            if (currentQueueVal > 0) {
+                const scrollTarget = listDiv.children[currentQueueVal - 1];
+                if (scrollTarget) {
+                    scrollTarget.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            }
         }
 
         function resetQueue() {
             if(confirm("คำเตือน: คุณแน่ใจหรือไม่ว่าต้องการรีเซ็ตคิวทั้งหมดกลับเป็นศูนย์?")) {
                 db.ref('currentQueue').set(0);
                 db.ref('lastQueue').set(0);
-                // ล้างข้อมูลรหัสประจำตัวทั้งหมด
                 db.ref('queueData').remove();
+                
+                document.getElementById('historyContainer').style.display = 'none';
                 alert("รีเซ็ตระบบคิวเรียบร้อยแล้ว");
             }
         }
